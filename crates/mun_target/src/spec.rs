@@ -1,3 +1,4 @@
+mod android_base;
 mod apple_base;
 mod linux_base;
 mod windows_msvc_base;
@@ -141,6 +142,10 @@ supported_targets!(
     ("aarch64-apple-darwin", aarch64_apple_darwin),
     ("aarch64-apple-ios", aarch64_apple_ios),
     ("aarch64-apple-ios-sim", aarch64_apple_ios_sim),
+    ("aarch64-linux-android", aarch64_linux_android),
+    ("armv7-linux-androideabi", armv7_linux_androideabi),
+    ("x86_64-linux-android", x86_64_linux_android),
+    ("i686-linux-android", i686_linux_android),
 );
 
 impl Target {

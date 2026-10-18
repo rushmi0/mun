@@ -21,7 +21,7 @@ by_address = { workspace = true }
 bytemuck = { workspace = true }
 mun_hir = { version = "0.6.0-dev", path = "../mun_hir" }
 mun_hir_input = { version = "0.6.0-dev", path = "../mun_hir_input" }
-inkwell = { workspace = true, features = ["llvm14-0", "target-x86", "target-aarch64"] }
+inkwell = { workspace = true, features = ["llvm14-0", "target-x86", "target-aarch64", "target-arm"] }
 itertools = { workspace = true }
 mun_codegen_macros = { version = "0.6.0-dev", path = "../mun_codegen_macros" }
 mun_target = { version = "0.6.0-dev", path = "../mun_target" }

@@ -47,6 +47,7 @@ fn target_machine(db: &dyn CodeGenDatabase) -> ByAddress<Rc<inkwell::targets::Ta
     // Initialize the x86 target
     Target::initialize_x86(&InitializationConfig::default());
     Target::initialize_aarch64(&InitializationConfig::default());
+    Target::initialize_arm(&InitializationConfig::default());
 
     // Retrieve the LLVM target using the specified target.
     let target_triple = TargetTriple::create(&db.target().llvm_target);
