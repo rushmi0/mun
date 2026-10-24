@@ -82,4 +82,5 @@ rustflags = [
 ]
 
 [env]
-LLVM_SYS_140_PREFIX = { value = ".pixi/envs/default", relative = true }
+LLVM_SYS_140_PREFIX = "/home/milko/.local/opt/llvm14"
+#LLVM_SYS_140_PREFIX = { value = "../llvm-android/prefix", relative = true }
