@@ -53,8 +53,7 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
                 let field_alignments = struct_data.fields.iter().map(|f| {
                     let ty = &f.ty;
                     quote! {{
-                        let ir_type = <#ty>::get_ir_type(type_context);
-                        type_context.target_data.get_preferred_alignment(&ir_type) as usize
+                        <#ty>::get_alignment(type_context)
                     }}
                 });
 
@@ -82,6 +81,14 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
 
                     field_paddings
                 }}
+            };
+
+            let struct_alignment = {
+                let field_alignments = struct_data.fields.iter().map(|f| {
+                    let ty = &f.ty;
+                    quote! { <#ty>::get_alignment(context) }
+                });
+                quote! { [1, #(#field_alignments),*].into_iter().max().unwrap() }
             };
 
             let field_padding_values = field_padding_types.clone();
@@ -197,6 +204,11 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
 
                         struct_ty.set_body(&struct_fields, true);
                         struct_ty
+                    }
+
+                    #[allow(unused_variables)]
+                    fn get_alignment(context: &crate::value::IrTypeContext<'ink, '_>) -> usize {
+                        #struct_alignment
                     }
                 }
 
@@ -405,8 +417,7 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
                 let field_alignments = v.fields.iter().map(|f| {
                     let ty = &f.ty;
                     quote! {{
-                        let ir_type = <#ty>::get_ir_type(type_context);
-                        type_context.target_data.get_preferred_alignment(&ir_type) as usize
+                        <#ty>::get_alignment(type_context)
                     }}
                 });
 
@@ -443,8 +454,7 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
                 let field_alignments = v.fields.iter().map(|f| {
                     let ty = &f.ty;
                     quote! {{
-                        let ir_type = <#ty>::get_ir_type(type_context);
-                        type_context.target_data.get_preferred_alignment(&ir_type) as usize
+                        <#ty>::get_alignment(type_context)
                     }}
                 });
 
@@ -457,6 +467,7 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
             });
 
             let variant_value_alignments = variant_type_alignments.clone();
+            let variant_alignments_for_get = variant_type_alignments.clone();
 
             // Generate a list of bytes and `inkwell::values::PointerValue`s for each field.
             //
@@ -606,6 +617,15 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
                         ], true);
 
                         struct_ty
+                    }
+
+                    fn get_alignment(context: &crate::value::IrTypeContext<'ink, '_>) -> usize {
+                        let type_context = context;
+                        let variant_alignments = [#(#variant_alignments_for_get),*];
+                        core::cmp::max(
+                            std::mem::size_of::<#repr_ty>(),
+                            variant_alignments.iter().max().cloned().unwrap_or(1),
+                        )
                     }
                 }
 

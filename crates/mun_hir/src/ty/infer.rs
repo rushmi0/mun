@@ -37,6 +37,9 @@ use crate::{
 
 mod coerce;
 
+/// Builtins resolved by [`InferenceResultBuilder::infer_type_directed_call`].
+const TYPE_DIRECTED_FNS: &[&str] = &["__fmt_arg"];
+
 /// A list of interned types
 #[derive(Clone, PartialEq, Eq, Debug)]
 struct InternedStandardTypes {
@@ -718,6 +721,10 @@ impl InferenceResultBuilder<'_> {
         args: &[ExprId],
         _expected: &Expectation,
     ) -> Ty {
+        if let Some(ty) = self.infer_type_directed_call(callee, args) {
+            return ty;
+        }
+
         let callee_ty = self.infer_expr_inner(
             callee,
             &Expectation::none(),
@@ -776,6 +783,68 @@ impl InferenceResultBuilder<'_> {
                 error_type()
             }
         }
+    }
+
+    /// Infers a call to a type-directed builtin: `name(x)` calls the function
+    /// `name_<type of x>`, such as `__fmt_arg_i32`, which must be in scope.
+    /// Mun has no overloading, so embedders use this to accept any type, as
+    /// the `println!` expansion of the Kotlin bindings does. Unsuffixed
+    /// literals pick the types they would default to: `i32` and `f64`.
+    ///
+    /// Returns `None` if the call is not to such a builtin.
+    fn infer_type_directed_call(&mut self, callee: ExprId, args: &[ExprId]) -> Option<Ty> {
+        let Expr::Path(path) = &self.body[callee] else {
+            return None;
+        };
+        let name = path.as_ident()?.to_string();
+        if !TYPE_DIRECTED_FNS.contains(&name.as_str()) {
+            return None;
+        }
+        let &[arg] = args else {
+            return None;
+        };
+
+        let arg_ty = self.infer_expr(arg, &Expectation::none());
+        let arg_ty = self
+            .type_variables
+            .replace_if_possible(self.db, &arg_ty)
+            .into_owned();
+        let suffix = match arg_ty.interned() {
+            TyKind::Bool => Some("bool"),
+            TyKind::Int(ty) => Some(ty.as_str()),
+            TyKind::Float(ty) => Some(ty.as_str()),
+            TyKind::InferenceVar(InferTy::Int(_)) => Some("i32"),
+            TyKind::InferenceVar(InferTy::Float(_)) => Some("f64"),
+            TyKind::Array(elem) if *elem.interned() == TyKind::Int(IntTy::u8()) => Some("str"),
+            // An error has already been reported for the argument.
+            TyKind::Unknown => return Some(error_type()),
+            _ => None,
+        };
+
+        let resolver = resolver_for_expr(self.db, self.body.owner(), callee);
+        let function = suffix.and_then(|suffix| {
+            let path = Path::from(Name::new(format!("{name}_{suffix}")));
+            match resolver.resolve_path_as_value(self.db, &path)? {
+                ResolveValueResult::ValueNs(ValueNs::FunctionId(f), _) => Some(f),
+                _ => None,
+            }
+        });
+        let Some(function) = function else {
+            self.diagnostics
+                .push(InferenceDiagnostic::CannotFormat { id: arg, ty: arg_ty });
+            return Some(error_type());
+        };
+
+        let callee_ty = self
+            .db
+            .type_for_def(TypableDef::Function(function.into()), Namespace::Values);
+        self.set_expr_type(callee, callee_ty.clone());
+        let sig = callee_ty.callable_sig(self.db).unwrap();
+        // Unify, so an unsuffixed literal gets the type of the parameter.
+        if let Some(param_ty) = sig.params().first() {
+            self.unify(param_ty, &arg_ty);
+        }
+        Some(sig.ret().clone())
     }
 
     /// Checks whether the specified struct type is a unit struct.
@@ -1253,7 +1322,7 @@ mod diagnostics {
         code_model::{src::HasSource, StructKind},
         diagnostics::{
             AccessUnknownField, BreakOutsideLoop, BreakWithValueOutsideLoop, CannotApplyBinaryOp,
-            CannotApplyUnaryOp, CyclicType, DiagnosticSink, ExpectedFunction, FieldCountMismatch,
+            CannotApplyUnaryOp, CannotFormat, CyclicType, DiagnosticSink, ExpectedFunction, FieldCountMismatch,
             IncompatibleBranch, InvalidLhs, LiteralOutOfRange, MethodNotFound, MethodNotInScope,
             MismatchedStructLit, MismatchedType, MissingElseBranch, MissingFields, NoFields,
             NoSuchField, ParameterCountMismatch, PrivateAccess, ReturnMissingExpression,
@@ -1262,7 +1331,7 @@ mod diagnostics {
         ids::FunctionId,
         ty::infer::ExprOrPatId,
         type_ref::LocalTypeRefId,
-        ExprId, Function, HirDatabase, IntTy, Name, Ty,
+        ExprId, Function, HirDatabase, HirDisplay, IntTy, Name, Ty,
     };
 
     #[derive(Debug, PartialEq, Eq, Clone)]
@@ -1279,6 +1348,10 @@ mod diagnostics {
         ExpectedFunction {
             id: ExprId,
             found: Ty,
+        },
+        CannotFormat {
+            id: ExprId,
+            ty: Ty,
         },
         ParameterCountMismatch {
             id: ExprId,
@@ -1445,6 +1518,18 @@ mod diagnostics {
                         expr,
                         expected: *expected,
                         found: *found,
+                    });
+                }
+                InferenceDiagnostic::CannotFormat { id, ty } => {
+                    let expr = body
+                        .expr_syntax(*id)
+                        .unwrap()
+                        .value
+                        .either(|it| it.syntax_node_ptr(), |it| it.syntax_node_ptr());
+                    sink.push(CannotFormat {
+                        file,
+                        expr,
+                        ty: ty.display(db).to_string(),
                     });
                 }
                 InferenceDiagnostic::ExpectedFunction { id, found } => {

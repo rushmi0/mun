@@ -1,6 +1,11 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use inkwell::{context::Context, module::Module, targets::TargetMachine, types::StructType};
+use inkwell::{
+    context::Context,
+    module::{FlagBehavior, Module},
+    targets::TargetMachine,
+    types::StructType,
+};
 
 use crate::{ir::ty::HirTypeCache, CodeGenDatabase};
 
@@ -45,6 +50,14 @@ impl<'db, 'ink> CodeGenContext<'db, 'ink> {
         let module = self.context.create_module(name.as_ref());
         module.set_data_layout(&self.target_machine.get_target_data().get_data_layout());
         module.set_triple(&self.target_machine.get_triple());
+        let abi_name = &self.db.target().options.llvm_abiname;
+        if !abi_name.is_empty() {
+            module.add_metadata_flag(
+                "target-abi",
+                FlagBehavior::Error,
+                self.context.metadata_string(abi_name),
+            );
+        }
         module
     }
 }

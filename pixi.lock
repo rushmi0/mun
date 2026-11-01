@@ -227,6 +227,10 @@ environments:
       win-64:
       - conda: https://conda.anaconda.org/conda-forge/label/rust_dev/noarch/rust-std-x86_64-pc-windows-msvc-1.99.0.dev20260811-h5f967e8_0.conda
       - conda: https://conda.anaconda.org/conda-forge/label/rust_dev/win-64/rust-1.99.0.dev20260811-heb60311_0.conda
+  uniffi:
+    channels:
+    - url: https://conda.anaconda.org/conda-forge/
+    packages: {}
 packages:
 - conda: https://conda.anaconda.org/conda-forge/label/rust_dev/linux-64/rust-1.99.0.dev20260811-ha4b8ca3_0.conda
   sha256: 40145e598df81418c48a7aca037e3c27b6dd0905b383861cea6500673d01dc39

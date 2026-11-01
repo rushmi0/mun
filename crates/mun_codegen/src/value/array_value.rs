@@ -51,6 +51,10 @@ macro_rules! impl_array(
                 fn get_ir_type(context: &IrTypeContext<'ink, '_>) -> inkwell::types::ArrayType<'ink> {
                     T::get_ir_type(context).array_type($size)
                 }
+
+                fn get_alignment(context: &IrTypeContext<'ink, '_>) -> usize {
+                    T::get_alignment(context)
+                }
             }
 
             impl<'ink, T: PointerValueType<'ink> + SizedValueType<'ink>> PointerValueType<'ink> for [T; $size] {

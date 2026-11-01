@@ -24,6 +24,11 @@ macro_rules! tuple_impls {
                     $($name::get_ir_type(context).into(),)*
                 ], false)
             }
+
+            #[allow(unused_variables)]
+            fn get_alignment(context: &IrTypeContext<'ink, '_>) -> usize {
+                [1, $($name::get_alignment(context),)*].into_iter().max().unwrap()
+            }
         }
 
         impl<'ink, $($name: AsValueInto<'ink, inkwell::values::BasicValueEnum<'ink>>),*> AsValue<'ink, ($($name,)*)> for ($($name,)*) {

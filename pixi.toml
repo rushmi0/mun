@@ -32,6 +32,7 @@ generated-check = "cargo test -p tools"
 
 [environments]
 nightly = { features = ["nightly"], no-default-feature = true }
+uniffi = { features = ["uniffi"], no-default-feature = true }
 
 [target.osx-64.dependencies]
 macosx_deployment_target_osx-64 = "15.5.*"
@@ -40,6 +41,16 @@ compiler-rt = "14.*"
 [target.osx-arm64.dependencies]
 macosx_deployment_target_osx-arm64 = "15.5.*"
 compiler-rt = "14.*"
+
+# Point llvm-sys at this environment's LLVM 14. This overrides an
+# LLVM_SYS_140_PREFIX set in .cargo/config.toml: a host LLVM such as Fedora's
+# llvm14 is built against a newer glibc than conda's compilers link with
+# (undefined __isoc23_*, mallinfo2, __libc_single_threaded).
+[target.unix.activation.env]
+LLVM_SYS_140_PREFIX = "$CONDA_PREFIX"
+
+[target.win-64.activation.env]
+LLVM_SYS_140_PREFIX = "%CONDA_PREFIX%\\Library"
 
 [target.osx.activation.env]
 DYLD_FALLBACK_LIBRARY_PATH = "$CONDA_PREFIX/lib"
@@ -56,3 +67,13 @@ clippy = "cargo clippy --all-features"
 doctest = "cargo test --doc --all-features"
 test = "cargo test --workspace"
 test-coverage = "cargo llvm-cov nextest --all-features --workspace --exclude tools --lcov --output-path lcov.info --profile ci"
+
+# Kotlin Multiplatform library in rust-to-kotlin/: `pixi run uniffi` runs its
+# whole pipeline (one-time toolchain setup, every target, bindings, KMP
+# library) through rust-to-kotlin/pixi.toml. The `uniffi` env has no
+# packages, so this environment's conda Rust doesn't shadow the rustup
+# toolchain rust-to-kotlin pins.
+[feature.uniffi.tasks]
+uniffi = { cmd = "\"$PIXI_EXE\" run --manifest-path rust-to-kotlin/pixi.toml build", description = "Set up and build rust-to-kotlin: Mun libraries -> uniffi bindings -> KMP library" }
+uniffi-test = { cmd = "\"$PIXI_EXE\" run --manifest-path rust-to-kotlin/pixi.toml test", description = "Run the rust-to-kotlin KMP tests" }
+

@@ -192,6 +192,18 @@ pub trait SizedValueType<'ink>: ConcreteValueType<'ink> + Sized {
     fn get_ir_type(
         context: &IrTypeContext<'ink, '_>,
     ) -> <<Self as ConcreteValueType<'ink>>::Value as ValueType<'ink>>::Type;
+
+    /// Returns the alignment of a value of this type, as Rust lays it out.
+    ///
+    /// This is the ABI alignment of the IR type, except for types whose IR
+    /// type does not carry it, such as the packed structs `AsValue` derives.
+    /// LLVM's preferred alignment does not match Rust either: on aarch64 Linux
+    /// and Android it rounds `i8` up to 4 bytes.
+    fn get_alignment(context: &IrTypeContext<'ink, '_>) -> usize {
+        context
+            .target_data
+            .get_abi_alignment(&Self::get_ir_type(context)) as usize
+    }
 }
 
 /// A trait that returns the pointer type of the specified value.
@@ -344,6 +356,11 @@ impl<'ink, T: SizedValueType<'ink>> Value<'ink, T> {
     pub fn get_ir_type(context: &IrTypeContext<'ink, '_>) -> <T::Value as ValueType<'ink>>::Type {
         T::get_ir_type(context)
     }
+
+    /// Returns the alignment of this `Value`.
+    pub fn get_alignment(context: &IrTypeContext<'ink, '_>) -> usize {
+        T::get_alignment(context)
+    }
 }
 
 impl<'ink, T: ConcreteValueType<'ink> + ?Sized> AsValue<'ink, T> for Value<'ink, T> {
@@ -424,6 +441,10 @@ where
 {
     fn get_ir_type(context: &IrTypeContext<'ink, '_>) -> <Self::Value as ValueType<'ink>>::Type {
         T::Target::get_ir_type(context)
+    }
+
+    fn get_alignment(context: &IrTypeContext<'ink, '_>) -> usize {
+        T::Target::get_alignment(context)
     }
 }
 

@@ -182,6 +182,29 @@ impl Diagnostic for ExpectedFunction {
     }
 }
 
+/// A value passed to a type-directed builtin, such as the `__fmt_arg` that
+/// embedders expand `println!` into, whose type has no matching function.
+#[derive(Debug)]
+pub struct CannotFormat {
+    pub file: FileId,
+    pub expr: SyntaxNodePtr,
+    pub ty: String,
+}
+
+impl Diagnostic for CannotFormat {
+    fn message(&self) -> String {
+        format!("`{}` cannot be formatted", self.ty)
+    }
+
+    fn source(&self) -> InFile<SyntaxNodePtr> {
+        InFile::new(self.file, self.expr.clone())
+    }
+
+    fn as_any(&self) -> &(dyn Any + Send + 'static) {
+        self
+    }
+}
+
 #[derive(Debug)]
 pub struct ExportedPrivate {
     pub file: FileId,

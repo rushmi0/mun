@@ -36,6 +36,9 @@ smallvec = { workspace = true, features = ["union"] }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 
+[target.'cfg(target_arch = "riscv64")'.dependencies]
+inkwell = { workspace = true, features = ["target-riscv"] }
+
 [dev-dependencies]
 mun_abi = { path = "../mun_abi", features = ["serde"] }
 insta = { workspace = true, features = ["ron"] }
