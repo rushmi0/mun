@@ -1,5 +1,8 @@
+mod android_base;
 mod apple_base;
+mod freebsd_base;
 mod linux_base;
+mod linux_musl_base;
 mod windows_msvc_base;
 
 use std::borrow::Cow;
@@ -74,6 +77,10 @@ pub struct TargetOptions {
     /// -mattr=$features`.
     pub features: String,
 
+    /// The LLVM ABI name, emitted as the `target-abi` module flag. Defaults to
+    /// "", which lets LLVM pick the default ABI for the target triple.
+    pub llvm_abiname: String,
+
     /// String to prepend to the name of every dynamic library. Defaults to
     /// "lib".
     pub dll_prefix: String,
@@ -102,6 +109,7 @@ impl Default for TargetOptions {
             pre_link_args: vec![],
             cpu: "generic".to_string(),
             features: "".to_string(),
+            llvm_abiname: "".to_string(),
             dll_prefix: "lib".to_string(),
             is_like_windows: false,
             is_like_msvc: false,
@@ -136,11 +144,28 @@ macro_rules! supported_targets {
 supported_targets!(
     ("x86_64-apple-darwin", x86_64_apple_darwin),
     ("x86_64-apple-ios", x86_64_apple_ios),
-    ("x86_64-pc-windows-msvc", x86_64_pc_windows_msvc),
-    ("x86_64-unknown-linux-gnu", x86_64_unknown_linux_gnu),
     ("aarch64-apple-darwin", aarch64_apple_darwin),
     ("aarch64-apple-ios", aarch64_apple_ios),
     ("aarch64-apple-ios-sim", aarch64_apple_ios_sim),
+    ("x86_64-pc-windows-msvc", x86_64_pc_windows_msvc),
+    ("i686-pc-windows-msvc", i686_pc_windows_msvc),
+    ("aarch64-pc-windows-msvc", aarch64_pc_windows_msvc),
+    ("x86_64-unknown-linux-gnu", x86_64_unknown_linux_gnu),
+    ("x86_64-unknown-linux-musl", x86_64_unknown_linux_musl),
+    ("x86_64-unknown-freebsd", x86_64_unknown_freebsd),
+    ("i686-unknown-linux-gnu", i686_unknown_linux_gnu),
+    ("i686-unknown-linux-musl", i686_unknown_linux_musl),
+    ("aarch64-unknown-linux-gnu", aarch64_unknown_linux_gnu),
+    ("aarch64-unknown-linux-musl", aarch64_unknown_linux_musl),
+    ("armv7-unknown-linux-gnueabihf", armv7_unknown_linux_gnueabihf),
+    ("armv7-unknown-linux-musleabihf", armv7_unknown_linux_musleabihf),
+    ("riscv64gc-unknown-linux-gnu", riscv64gc_unknown_linux_gnu),
+    ("riscv64gc-unknown-linux-musl", riscv64gc_unknown_linux_musl),
+    ("i686-linux-android", i686_linux_android),
+    ("x86_64-linux-android", x86_64_linux_android),
+    ("arm-linux-androideabi", arm_linux_androideabi),
+    ("armv7-linux-androideabi", armv7_linux_androideabi),
+    ("aarch64-linux-android", aarch64_linux_android),
 );
 
 impl Target {

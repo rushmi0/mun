@@ -1,7 +1,10 @@
 use std::{rc::Rc, sync::Arc};
 
 use by_address::ByAddress;
-use inkwell::targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetTriple};
+use inkwell::{
+    targets::{CodeModel, InitializationConfig, RelocMode, Target, TargetTriple},
+    OptimizationLevel,
+};
 
 use crate::{AssemblyIr, ModuleGroupId, ModulePartition, TargetAssembly};
 
@@ -17,7 +20,7 @@ use crate::{AssemblyIr, ModuleGroupId, ModulePartition, TargetAssembly};
 pub trait CodeGenDatabase: mun_hir::HirDatabase {
     /// Set the optimization level used to generate assemblies
     #[ra_salsa::input]
-    fn optimization_level(&self) -> inkwell::OptimizationLevel;
+    fn optimization_level(&self) -> OptimizationLevel;
 
     /// Returns the current module partition
     #[ra_salsa::invoke(crate::module_partition::build_partition)]
@@ -41,29 +44,61 @@ pub trait CodeGenDatabase: mun_hir::HirDatabase {
 /// target machine. All target-specific information should be accessible through
 /// this interface.
 fn target_machine(db: &dyn CodeGenDatabase) -> ByAddress<Rc<inkwell::targets::TargetMachine>> {
-    // Get the HIR target
-    let target = db.target();
+    ByAddress(Rc::new(create_target_machine(
+        &db.target(),
+        db.optimization_level(),
+    )))
+}
 
-    // Initialize the x86 target
+/// Constructs an LLVM target machine for the specified Mun target.
+fn create_target_machine(
+    target: &mun_target::spec::Target,
+    optimization_level: OptimizationLevel,
+) -> inkwell::targets::TargetMachine {
+    // Initialize the LLVM backends for all supported target architectures
     Target::initialize_x86(&InitializationConfig::default());
     Target::initialize_aarch64(&InitializationConfig::default());
+    Target::initialize_arm(&InitializationConfig::default());
+    Target::initialize_riscv(&InitializationConfig::default());
 
     // Retrieve the LLVM target using the specified target.
-    let target_triple = TargetTriple::create(&db.target().llvm_target);
+    let target_triple = TargetTriple::create(&target.llvm_target);
     let llvm_target = Target::from_triple(&target_triple)
         .expect("could not find llvm target tripple for Mun target");
 
     // Construct target machine for machine code generation
-    let target_machine = llvm_target
+    llvm_target
         .create_target_machine(
             &target_triple,
             &target.options.cpu,
             &target.options.features,
-            db.optimization_level(),
+            optimization_level,
             RelocMode::PIC,
             CodeModel::Default,
         )
-        .expect("could not create llvm target machine");
+        .expect("could not create llvm target machine")
+}
 
-    ByAddress(Rc::new(target_machine))
+#[cfg(test)]
+mod tests {
+    use inkwell::OptimizationLevel;
+
+    use super::create_target_machine;
+
+    /// The data layout of every Mun target must match the one LLVM uses for
+    /// that target; otherwise type sizes computed by Mun differ from the
+    /// generated code.
+    #[test]
+    fn target_data_layouts_match_llvm() {
+        for triple in mun_target::spec::get_targets() {
+            let target = mun_target::spec::Target::search(triple).unwrap();
+            let target_machine = create_target_machine(&target, OptimizationLevel::Default);
+            let llvm_data_layout = target_machine.get_target_data().get_data_layout();
+            assert_eq!(
+                llvm_data_layout.as_str().to_str().unwrap(),
+                target.data_layout,
+                "data layout mismatch for target `{triple}`"
+            );
+        }
+    }
 }

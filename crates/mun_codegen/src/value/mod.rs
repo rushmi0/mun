@@ -192,6 +192,12 @@ pub trait SizedValueType<'ink>: ConcreteValueType<'ink> + Sized {
     fn get_ir_type(
         context: &IrTypeContext<'ink, '_>,
     ) -> <<Self as ConcreteValueType<'ink>>::Value as ValueType<'ink>>::Type;
+
+    fn get_alignment(context: &IrTypeContext<'ink, '_>) -> usize {
+        context
+            .target_data
+            .get_abi_alignment(&Self::get_ir_type(context)) as usize
+    }
 }
 
 /// A trait that returns the pointer type of the specified value.
@@ -340,6 +346,11 @@ where
 }
 
 impl<'ink, T: SizedValueType<'ink>> Value<'ink, T> {
+    /// Returns the ABI alignment in bytes of this `Value`.
+    pub fn get_alignment(context: &IrTypeContext<'ink, '_>) -> usize {
+        T::get_alignment(context)
+    }
+
     /// Returns the inkwell type of this `Value`.
     pub fn get_ir_type(context: &IrTypeContext<'ink, '_>) -> <T::Value as ValueType<'ink>>::Type {
         T::get_ir_type(context)
@@ -424,6 +435,10 @@ where
 {
     fn get_ir_type(context: &IrTypeContext<'ink, '_>) -> <Self::Value as ValueType<'ink>>::Type {
         T::Target::get_ir_type(context)
+    }
+
+    fn get_alignment(context: &IrTypeContext<'ink, '_>) -> usize {
+        T::Target::get_alignment(context)
     }
 }
 

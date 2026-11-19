@@ -1,5 +1,5 @@
+use crate::spec::apple_base::{ios_sim_llvm_target, opts, Arch};
 use crate::spec::{Target, TargetOptions};
-use crate::spec::apple_base::{Arch, ios_sim_llvm_target, opts};
 
 pub fn target() -> Target {
     let arch = Arch::Arm64_sim;
@@ -15,6 +15,6 @@ pub fn target() -> Target {
         options: TargetOptions {
             features: "+neon,+fp-armv8,+apple-a7".into(),
             ..opts("ios", arch)
-        }
+        },
     }
 }

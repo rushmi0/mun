@@ -9,7 +9,7 @@ pub fn target() -> Target {
             .into(),
         options: TargetOptions {
             cpu: "x86-64".into(),
-            .. super::linux_base::opts()
+            ..super::linux_base::opts()
         },
     }
 }

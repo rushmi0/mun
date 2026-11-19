@@ -36,6 +36,21 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            // Generate a list of struct fields' alignments.
+            //
+            // Expects:
+            // - type_context: &IrTypeContext
+            let struct_field_alignments: Vec<_> = struct_data
+                .fields
+                .iter()
+                .map(|f| {
+                    let ty = &f.ty;
+                    quote! {
+                        <#ty>::get_alignment(type_context)
+                    }
+                })
+                .collect();
+
             // Generate a list of struct fields' paddings.
             //
             // Expects:
@@ -50,6 +65,7 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
                     }}
                 });
 
+                //let field_alignments = &struct_field_alignments;
                 let field_alignments = struct_data.fields.iter().map(|f| {
                     let ty = &f.ty;
                     quote! {{
@@ -197,6 +213,17 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
 
                         struct_ty.set_body(&struct_fields, true);
                         struct_ty
+                    }
+
+                    fn get_alignment(context: &crate::value::IrTypeContext<'ink, '_>) -> usize {
+                        // Aliasing to make sure that all procedurally generated macros can use the
+                        // same variable name.
+                        let type_context = context;
+
+                        // The IR struct is packed, so its alignment has to be derived from its
+                        // fields, the same way as for a `#[repr(C)]` struct.
+                        let field_alignments: Vec<usize> = vec![ #(#struct_field_alignments),* ];
+                        field_alignments.into_iter().max().unwrap_or(1)
                     }
                 }
 
@@ -404,10 +431,9 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
 
                 let field_alignments = v.fields.iter().map(|f| {
                     let ty = &f.ty;
-                    quote! {{
-                        let ir_type = <#ty>::get_ir_type(type_context);
-                        type_context.target_data.get_preferred_alignment(&ir_type) as usize
-                    }}
+                    quote! {
+                        <#ty>::get_alignment(type_context)
+                    }
                 });
 
                 quote! {{
@@ -442,10 +468,9 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
             let variant_type_alignments = enum_data.variants.iter().map(|v| {
                 let field_alignments = v.fields.iter().map(|f| {
                     let ty = &f.ty;
-                    quote! {{
-                        let ir_type = <#ty>::get_ir_type(type_context);
-                        type_context.target_data.get_preferred_alignment(&ir_type) as usize
-                    }}
+                    quote! {
+                        <#ty>::get_alignment(type_context)
+                    }
                 });
 
                 let variant_align = quote! {{
@@ -457,6 +482,7 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
             });
 
             let variant_value_alignments = variant_type_alignments.clone();
+            let variant_alignments_for_align = variant_type_alignments.clone();
 
             // Generate a list of bytes and `inkwell::values::PointerValue`s for each field.
             //
@@ -590,8 +616,9 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
                             .max()
                             .unwrap_or(0);
 
-                        // Add padding for the end of the variant
-                        let enum_size = padded_size(chunk_size, max_size);
+                        // Add padding for the end of the enum, so its size is a multiple of its
+                        // alignment, the same as for a Rust enum.
+                        let enum_size = padded_size(max_align, max_size);
 
                         // The tag is excluded from the number of chunks
                         let num_chunks = enum_size / chunk_size - 1;
@@ -606,6 +633,21 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
                         ], true);
 
                         struct_ty
+                    }
+
+                    fn get_alignment(context: &crate::value::IrTypeContext<'ink, '_>) -> usize {
+                        // Aliasing to make sure that all procedurally generated macros can use the
+                        // same variable name.
+                        let type_context = context;
+
+                        // The IR struct is packed, so its alignment has to be derived from the tag
+                        // and the variants' fields, the same way as for a Rust enum.
+                        let chunk_size = std::mem::size_of::<#repr_ty>();
+                        let variant_alignments = [#(#variant_alignments_for_align),*];
+                        core::cmp::max(
+                            chunk_size,
+                            variant_alignments.iter().max().cloned().unwrap_or(1),
+                        )
                     }
                 }
 
@@ -655,8 +697,9 @@ pub fn as_value_derive(input: TokenStream) -> TokenStream {
                             .max()
                             .unwrap_or(0);
 
-                        // Add padding for the end of the variant
-                        let enum_size = padded_size(chunk_size, max_size);
+                        // Add padding for the end of the enum, so its size is a multiple of its
+                        // alignment, the same as for a Rust enum.
+                        let enum_size = padded_size(max_align, max_size);
 
                         #variant_bytes_and_ptrs
                     }
